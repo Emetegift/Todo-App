@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.views.generic.list import ListView
 from django.views.generic.detail import DetailView
 from django.views.generic.edit import CreateView, UpdateView, DeleteView, FormView
@@ -24,8 +24,19 @@ class CustomLoginView(LoginView):
 class RegisterPage(FormView):
     template_name = 'base/register.html'
     form_class = UserCreationForm
-    success_url = reverse_lazy('tasks')    
+    success_url = reverse_lazy('tasks')  
+    
+    # To redirect the user once the registration form is submitted
+    def  form_valid(self, form):
+        user = form.save()
+        if user is not None: # This means if the user was successfully created
+            login(self.request, user)
+        return super(RegisterPage, self).form_valid(form)  
 
+    def get(self,*args,**kwargs): # keyword arguments
+        if self.request.user.is_authenticated:
+            return redirect('tasks')
+        return super(RegisterPage, self).get(*args, **kwargs)
 
 #TaskList is used to check all tasks
 class TaskList(LoginRequiredMixin, ListView):
@@ -38,6 +49,14 @@ class TaskList(LoginRequiredMixin, ListView):
        context = super().get_context_data(**kwargs)
        context['tasks'] = context['tasks'].filter(user=self.request.user)
        context['count'] = context['tasks'].filter(complete=False).count()
+
+    # To make the search area work
+       search_input = self.request.GET.get('search-area') or ''
+       if search_input:
+           context['tasks'] = context['tasks'].filter(title__startswith=search_input)
+       
+       context['search_input'] = search_input
+       
        return context
 
 #DetailView is used to check info about a specific task 
@@ -53,7 +72,7 @@ class TaskCreate(LoginRequiredMixin, CreateView):
 
 #to over ride a method called form valid
     def form_valid(self, form):
-        form.instane.user= self.request.user
+        form.instance.user= self.request.user
         return super(TaskCreate, self).form_valid(form)
     
 class TaskUpdate(LoginRequiredMixin, UpdateView):
